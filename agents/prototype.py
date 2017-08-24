@@ -7,6 +7,8 @@ from pysc2.agents import base_agent
 from pysc2.lib import actions
 from pysc2.lib import features
 
+from time import sleep
+
 _PLAYER_RELATIVE = features.SCREEN_FEATURES.player_relative.index
 _PLAYER_FRIENDLY = 1
 _PLAYER_NEUTRAL = 3  # beacon/minerals
@@ -79,8 +81,75 @@ class RandomAgent(base_agent.BaseAgent):
   """A random agent for starcraft."""
 
   def step(self, obs):
+    #print(obs)
+    #sdf
+    sleep(.500)
     super(RandomAgent, self).step(obs)
     function_id = numpy.random.choice(obs.observation["available_actions"])
     args = [[numpy.random.randint(0, size) for size in arg.sizes]
             for arg in self.action_spec.functions[function_id].args]
     return actions.FunctionCall(function_id, args)
+
+class Prototype(base_agent.BaseAgent):
+
+    """
+    Information is bottom-up, goals are given top-down, control is 
+    group/individual
+    """
+
+    # Strategists
+    def resource_manager(self):
+        pass
+    
+    def vision_manager(self):
+        pass
+    
+    def defence_manager(self):
+        pass
+    
+    def offence_manager(self):
+        pass
+    
+    def creativity_manager(self):
+        pass
+    
+    # Planners
+    def short_term_planner(self):
+        pass
+    
+    def long_term_planner(self):
+        pass
+    
+    def local_planner(self):
+        pass
+    
+    def global_planner(self):
+        pass
+    
+    # Interconnect
+    def communication_protocol(self):
+        pass
+    
+    # Decision makers
+    def builder(self):
+        pass
+    
+    def assigner(self):
+        pass
+    
+    def mover(self):
+        pass
+    
+    
+    
+    
+
+    def step(self, obs):
+
+        sleep(.2500)
+        super(Prototype, self).step(obs)
+        
+        function_id = numpy.random.choice(obs.observation["available_actions"])
+        args = [[numpy.random.randint(0, size) for size in arg.sizes]
+                for arg in self.action_spec.functions[function_id].args]
+        return actions.FunctionCall(function_id, args)
