@@ -127,17 +127,6 @@ class Prototype(base_agent.BaseAgent):
         x_range = list(range(x_min + camera_size//2, x_max - camera_size//2, camera_size)) + [x_max - camera_size//2]
         y_range = list(range(y_min + camera_size//2, y_max - camera_size//2, camera_size)) + [y_max - camera_size//2]
         
-        x_range = range(45, 47, 1)
-        y_range = range(45, 47, 1)
-        
-        #x_range = [45, 46]
-        #y_range = [45, 46]
-        
-        #print(x_range)
-        #print(y_range)
-        #print(minimap.shape)
-        #print(screen_size)
-
         map_size = np.array(screen_size) * minimap.shape[1:3]/camera_size
         #print(map_size)
         self.map_history = np.zeros((*map_size.astype('uint64'), 13))
@@ -151,23 +140,13 @@ class Prototype(base_agent.BaseAgent):
         #mm_size = 64
         #x_range = [i * camera_size for i in range(mm_size//camera_size)]
         #y_range = [i * camera_size for i in range(mm_size//camera_size)]
-        if False:
-            for y in y_range:
-                for x in x_range:
-                    # For some reason x and y seem to be switched
-                    action = actions.FunctionCall(1, [(x, y)]) # "move_camera"
-                    self.action_queue.append(action)
-                    self.action_meta.append((x, y))
 
-#        action = actions.FunctionCall(1, [(45, 46)]) # "move_camera"
-#        self.action_queue.append(action)
-
-        action = actions.FunctionCall(1, [(46, 45)]) # "move_camera"
-        self.action_queue.append(action)
-        
-        action = actions.FunctionCall(1, [(45, 45)]) # "move_camera"
-        self.action_queue.append(action)
-        
+        for y in y_range:
+            for x in x_range:
+                # For some reason x and y seem to be switched
+                action = actions.FunctionCall(1, [(x, y)]) # "move_camera"
+                self.action_queue.append(action)
+                self.action_meta.append((x, y))
 
     # Strategists
     # TODO: Return analysis (including score) and proposed action sequence
@@ -273,14 +252,11 @@ class Prototype(base_agent.BaseAgent):
             self.map_history[map_coords>0] = np.rollaxis(screen, 0, 3).reshape((4096, 13))
             
             #Image.fromarray((minimap[1] > 0).astype('uint8')*255).show()
-            Image.fromarray((screen[4] > 0).astype('uint8')*255).show()
-            Image.fromarray((minimap[3] > 0).astype('uint8')*255).show()
+            #Image.fromarray((screen[4] > 0).astype('uint8')*255).show()
+            #Image.fromarray((minimap[3] > 0).astype('uint8')*255).show()
             Image.fromarray((self.map_history[:, :, 4] > 0).astype('uint8')*255).show()
         
         
-        
-
-
             sleep(2)
         
         #print(obs.observation['minimap'].shape)
