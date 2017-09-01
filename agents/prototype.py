@@ -13,6 +13,46 @@ from time import sleep
 
 from pysc2.env.environment import StepType
 
+import threading
+
+from pysc2 import maps
+from pysc2.env import available_actions_printer
+from pysc2.env import run_loop
+from pysc2.env import sc2_env
+from pysc2.lib import stopwatch
+
+from pysc2.lib import app
+import gflags as flags
+
+
+FLAGS = flags.FLAGS
+flags.DEFINE_bool("render", True, "Whether to render with pygame.")
+flags.DEFINE_integer("screen_resolution", 84,
+                     "Resolution for screen feature layers.")
+flags.DEFINE_integer("minimap_resolution", 64,
+                     "Resolution for minimap feature layers.")
+
+flags.DEFINE_integer("max_agent_steps", 2500, "Total agent steps.")
+flags.DEFINE_integer("game_steps_per_episode", 0, "Game steps per episode.")
+flags.DEFINE_integer("step_mul", 8, "Game steps per agent step.")
+
+#flags.DEFINE_string("agent", "pysc2.agents.random_agent.RandomAgent",
+#                    "Which agent to run")
+flags.DEFINE_enum("agent_race", None, sc2_env.races.keys(), "Agent's race.")
+flags.DEFINE_enum("bot_race", None, sc2_env.races.keys(), "Bot's race.")
+flags.DEFINE_enum("difficulty", None, sc2_env.difficulties.keys(),
+                  "Bot's strength.")
+
+flags.DEFINE_bool("profile", False, "Whether to turn on code profiling.")
+flags.DEFINE_bool("trace", False, "Whether to trace the code execution.")
+flags.DEFINE_integer("parallel", 1, "How many instances to run in parallel.")
+
+flags.DEFINE_bool("save_replay", True, "Whether to save a replay at the end.")
+
+flags.DEFINE_string("map", None, "Name of a map to use.")
+flags.mark_flag_as_required("map")
+
+
 _PLAYER_RELATIVE = features.SCREEN_FEATURES.player_relative.index
 _PLAYER_FRIENDLY = 1
 _PLAYER_NEUTRAL = 3  # beacon/minerals
@@ -113,7 +153,7 @@ class Prototype(base_agent.BaseAgent):
         visibility = minimap[1]
         # TODO: We need to know what the max dims are for the map
         camera = minimap[3]
-        camera_size = int(np.sqrt(np.sum(camera)))
+        camera_size = int(np.sqrt(np.sum(camera))) # Note: sqrt will not be correct if not square
         
         self.camera_size = camera_size
         
@@ -127,7 +167,17 @@ class Prototype(base_agent.BaseAgent):
         x_range = list(range(x_min + camera_size//2, x_max - camera_size//2, camera_size)) + [x_max - camera_size//2]
         y_range = list(range(y_min + camera_size//2, y_max - camera_size//2, camera_size)) + [y_max - camera_size//2]
         
-        map_size = np.array(screen_size) * minimap.shape[1:3]/camera_size
+        #print(camera_size)
+        #print(minimap.shape)
+        #print(np.array(minimap.shape[1:3])/camera_size)
+        
+        # This isn't working because camera size changes dependent on the
+        # starting location of the player.
+        #map_size = np.array(screen_size) * minimap.shape[1:3]/camera_size
+        
+        # This assumes the camera covers the entire minimap
+        map_size = np.array(screen_size) #* minimap.shape[1:3]/camera_size
+        
         #print(map_size)
         self.map_history = np.zeros((*map_size.astype('uint64'), 13))
         
@@ -249,7 +299,8 @@ class Prototype(base_agent.BaseAgent):
             #print(map_coords)
             #print(map_coords.shape)
             #print(np.rollaxis(screen, 0, 3).shape)
-            self.map_history[map_coords>0] = np.rollaxis(screen, 0, 3).reshape((4096, 13))
+            print(screen.shape)
+            self.map_history[map_coords>0] = np.rollaxis(screen, 0, 3).reshape((np.prod(screen.shape[1:]), 13))
             
             #Image.fromarray((minimap[1] > 0).astype('uint8')*255).show()
             #Image.fromarray((screen[4] > 0).astype('uint8')*255).show()
@@ -257,7 +308,7 @@ class Prototype(base_agent.BaseAgent):
             Image.fromarray((self.map_history[:, :, 4] > 0).astype('uint8')*255).show()
         
         
-            sleep(2)
+            sleep(200)
         
         #print(obs.observation['minimap'].shape)
         #print(obs.observation['screen'].shape)
@@ -275,3 +326,51 @@ class Prototype(base_agent.BaseAgent):
         #return actions.FunctionCall(function_id, args)
         #return actions.FunctionCall(_NO_OP, [])
         return self.action_queue.pop()
+
+def run_thread(agent_cls, map_name, visualize):
+  with sc2_env.SC2Env(
+      map_name=map_name,
+      agent_race=FLAGS.agent_race,
+      bot_race=FLAGS.bot_race,
+      difficulty=FLAGS.difficulty,
+      step_mul=FLAGS.step_mul,
+      game_steps_per_episode=FLAGS.game_steps_per_episode,
+      screen_size_px=(FLAGS.screen_resolution, FLAGS.screen_resolution),
+      minimap_size_px=(FLAGS.minimap_resolution, FLAGS.minimap_resolution),
+      visualize=visualize,
+      camera_width_world_units=128) as env:
+    env = available_actions_printer.AvailableActionsPrinter(env)
+    agent = agent_cls()
+    run_loop.run_loop([agent], env, FLAGS.max_agent_steps)
+    if FLAGS.save_replay:
+      env.save_replay(agent_cls.__name__)
+
+
+def main(unused_argv):
+  """Run an agent."""
+  stopwatch.sw.enabled = FLAGS.profile or FLAGS.trace
+  stopwatch.sw.trace = FLAGS.trace
+
+  maps.get(FLAGS.map)  # Assert the map exists.
+
+  #agent_module, agent_name = FLAGS.agent.rsplit(".", 1)
+  agent_cls = Prototype#getattr(importlib.import_module(agent_module), agent_name)
+
+  threads = []
+  for _ in range(FLAGS.parallel - 1):
+    t = threading.Thread(target=run_thread, args=(agent_cls, FLAGS.map, False))
+    threads.append(t)
+    t.start()
+
+  run_thread(agent_cls, FLAGS.map, FLAGS.render)
+
+  for t in threads:
+    t.join()
+
+  if FLAGS.profile:
+    print(stopwatch.sw)
+
+
+
+if __name__ == "__main__":
+  app.run(main)
